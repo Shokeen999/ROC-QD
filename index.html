@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remote Optometry QA Operations & Detractor Audit Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="chart.min.js"></script>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-section">
+        <div class="brand-logo">👁️</div>
+        <div class="brand-titles">
+          <h1>Remote Optometry QA Intelligence</h1>
+          <div class="subtitle">
+            <span>ET NPS Detractor Audits & Productivity Dashboard</span>
+            <span class="badge-live" id="liveDataBadge">Google Sheet Connected</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Google Sheet Sync Button -->
+        <button class="btn btn-sync" id="btnSyncGoogleSheet" title="Sync live data directly from Google Sheet">
+          <span class="spin-icon">🔄</span>
+          <span id="syncBtnText">Sync Google Sheet</span>
+        </button>
+        <button class="btn btn-secondary" id="btnSheetConfigModal" title="View or edit linked Google Sheet URL">
+          <span>🔗</span>
+          <span>Sheet Link</span>
+        </button>
+        <button class="btn btn-secondary" id="btnExportCSV" title="Export current dataset to CSV">
+          <span>📥</span>
+          <span>Export CSV</span>
+        </button>
+        <!-- Theme toggle removed per user request: Light Theme only -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar glass-panel">
+    <div class="filter-group">
+      <span class="filter-label">Date From:</span>
+      <input type="date" id="filterDateFrom" class="filter-input" title="Filter from date">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">To:</span>
+      <input type="date" id="filterDateTo" class="filter-input" title="Filter to date">
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-label">Quality Analyst:</span>
+      <select id="filterQA" class="filter-select">
+        <option value="ALL">All QAs (7 Analysts)</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-label">ROC:</span>
+      <select id="filterROC" class="filter-select">
+        <option value="ALL">All ROC Centers</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-label">Audit Result:</span>
+      <div class="filter-status-pills">
+        <button class="status-pill active" data-pf="ALL">All</button>
+        <button class="status-pill" data-pf="Pass">Pass</button>
+        <button class="status-pill" data-pf="Fail">Fail</button>
+        <button class="status-pill" data-pf="Pending">Pending</button>
+      </div>
+    </div>
+
+    <button class="filter-reset" id="btnResetFilters" title="Reset all applied filters">
+      <span>↺</span>
+      <span>Reset Filters</span>
+    </button>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <nav class="tabs-nav">
+    <button class="tab-btn active" data-tab="tab-overview">
+      <span>📊 Executive Overview</span>
+      <span class="tab-badge" id="badgeTotalAudits">663</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-complete-view">
+      <span>📑 Complete ROC Summary</span>
+      <span class="tab-badge">Table View</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-productivity">
+      <span>👥 QA Day-Wise Productivity</span>
+      <span class="tab-badge">Tracker</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-trends">
+      <span>📈 Day-Wise Audit Trends</span>
+      <span class="tab-badge" id="badgeDaysCount">30 Days</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-detractors">
+      <span>⚠️ Detractor & CX Buckets</span>
+      <span class="tab-badge">NPS D%</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-passfail">
+      <span>🎯 Audit Pass/Fail & Gaps</span>
+      <span class="tab-badge">SOP Quality</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-feedback">
+      <span>🔄 Feedback & Revalidation</span>
+      <span class="tab-badge">Ops</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-records">
+      <span>📋 Audit Records Explorer</span>
+      <span class="tab-badge" id="badgeFilteredRows">663</span>
+    </button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- KPI Metric Cards -->
+    <section class="metrics-grid" id="kpiGrid">
+      
+      <!-- Total Audits Completed -->
+      <div class="metric-card glass-panel card-audits">
+        <div class="metric-top">
+          <span class="metric-title">Total Audits Completed</span>
+          <div class="metric-icon">📋</div>
+        </div>
+        <div class="metric-value-row">
+          <span class="metric-value" id="kpiPassCountPlusFail">454</span>
+          <span class="metric-sub neutral" id="kpiTotalSampled">663 Sampled</span>
+        </div>
+        <div class="metric-footer">
+          <span>Evaluated Audits</span>
+          <span id="kpiCompletionRate">68.5% Evaluated</span>
+        </div>
+      </div>
+
+      <!-- Detractor Volume -->
+      <div class="metric-card glass-panel card-detractor">
+        <div class="metric-top">
+          <span class="metric-title">All-Time Detractors</span>
+          <div class="metric-icon">⚠️</div>
+        </div>
+        <div class="metric-value-row">
+          <span class="metric-value" id="kpiDetractorCount">653</span>
+          <span class="metric-sub negative">ET NPS Detractor Volume</span>
+        </div>
+        <div class="metric-footer">
+          <span>KOL (305) • Lucknow (242) • Delta (103)</span>
+          <span>Remote Optom</span>
+        </div>
+      </div>
+
+      <!-- Audit Pass -->
+      <div class="metric-card glass-panel card-pass">
+        <div class="metric-top">
+          <span class="metric-title">Audit Passed</span>
+          <div class="metric-icon">✅</div>
+        </div>
+        <div class="metric-value-row">
+          <span class="metric-value" id="kpiPassCount">283</span>
+          <span class="metric-sub positive" id="kpiPassRate">62.3% Pass Rate</span>
+        </div>
+        <div class="metric-footer">
+          <span>Compliant Refractions</span>
+          <span>Target: &gt;75%</span>
+        </div>
+      </div>
+
+      <!-- Audit Fail -->
+      <div class="metric-card glass-panel card-fail">
+        <div class="metric-top">
+          <span class="metric-title">Audit Failed</span>
+          <div class="metric-icon">❌</div>
+        </div>
+        <div class="metric-value-row">
+          <span class="metric-value" id="kpiFailCount">171</span>
+          <span class="metric-sub negative" id="kpiFailRate">37.7% Fail Rate</span>
+        </div>
+        <div class="metric-footer">
+          <span>Clinical & SOP Gaps</span>
+          <span>Requires Coaching</span>
+        </div>
+      </div>
+
+      <!-- Feedback Shared -->
+      <div class="metric-card glass-panel card-feedback">
+        <div class="metric-top">
+          <span class="metric-title">Feedback Shared</span>
+          <div class="metric-icon">💬</div>
+        </div>
+        <div class="metric-value-row">
+          <span class="metric-value" id="kpiFeedbackClosed">145</span>
+          <span class="metric-sub positive" id="kpiFeedbackRate">145 Shared</span>
+        </div>
+        <div class="metric-footer">
+          <span>Feedback loop delivered to RO</span>
+          <span id="kpiFeedbackPending">Shared with RO</span>
+        </div>
+      </div>
+
+      <!-- Ops Validated -->
+      <div class="metric-card glass-panel card-validation">
+        <div class="metric-top">
+          <span class="metric-title">Ops Validated</span>
+          <div class="metric-icon">🛡️</div>
+        </div>
+        <div class="metric-value-row">
+          <span class="metric-value" id="kpiValidatedCount">46</span>
+          <span class="metric-sub neutral" id="kpiValidationRate">46 Validated</span>
+        </div>
+        <div class="metric-footer">
+          <span>Operations Review / Sign-off</span>
+          <span id="kpiNotValidated">58 Not Validated</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 1: EXECUTIVE OVERVIEW (DEFAULT ACTIVE) -->
+    <div class="tab-pane active" id="tab-overview">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📊 Executive QA Operations Summary</h2>
+          <p class="section-desc">Holistic view of day-wise audit cadence, pass/fail distribution, and core performance metrics</p>
+        </div>
+      </div>
+
+      <div class="charts-grid-2-1">
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">📈 Day-Wise Audit Throughput (Pass vs Fail)</span>
+            <span class="badge badge-pending" id="overviewPeakBadge">Peak: 49 on 25-Sep</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="overviewDayChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">🎯 Audit Outcome Share</span>
+            <span class="badge badge-pass" id="overviewPassBadge">62.3% Pass</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="overviewPassFailChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-grid-3">
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">👥 Audits per Quality Analyst</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="overviewQAChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">⚠️ Top Customer Detractor Categories</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="overviewCxL1Chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">🏢 Audits by ROC Center</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="overviewROCChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: COMPLETE ROC SUMMARY VIEW (EXACT USER SCREENSHOT) -->
+    <div class="tab-pane" id="tab-complete-view">
+      <div class="complete-view-wrapper">
+        
+        <div class="complete-view-banner">
+          <div>
+            <h2 style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary); margin-bottom: 2px;">
+              📑 ROC & Overall Audit Performance Summary
+            </h2>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">
+              Exact daily breakdown of Detractors, Audits Completed, Feedback Shared, and Ops Validated
+            </p>
+          </div>
+
+          <div class="complete-view-controls">
+            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">Date Range:</span>
+            <select id="completeViewDatePreset" class="filter-select" style="padding: 5px 10px; font-weight: 600;">
+              <option value="screenshot" selected>20, 21, 22 Oct (Screenshot View)</option>
+              <option value="last7">Last 7 Days</option>
+              <option value="last14">Last 14 Days</option>
+              <option value="all">All Available Dates (Full Timeline)</option>
+            </select>
+            <button class="btn btn-secondary" style="padding: 5px 12px; font-size: 0.8rem;" id="btnExportCompleteViewCSV">
+              📥 Export View
+            </button>
+          </div>
+        </div>
+
+        <!-- Section 1: Overall Table -->
+        <div class="summary-block">
+          <table class="summary-matrix-table" id="tableOverall">
+            <thead>
+              <tr>
+                <th colspan="5" class="table-title-cell">Overall</th>
+              </tr>
+              <tr class="yellow-headers">
+                <th>Date</th>
+                <th>Detractor</th>
+                <th>Audit Completed</th>
+                <th>Feedback Shared</th>
+                <th>Ops Validated</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyOverall"></tbody>
+          </table>
+        </div>
+
+        <!-- Section 2: ROC - KOL Table -->
+        <div class="summary-block">
+          <table class="summary-matrix-table" id="tableRocKol">
+            <thead>
+              <tr>
+                <th colspan="5" class="table-title-cell">ROC - KOL</th>
+              </tr>
+              <tr class="yellow-headers">
+                <th>Date</th>
+                <th>Detractor</th>
+                <th>Audit Completed</th>
+                <th>Feedback Shared</th>
+                <th>Ops Validated</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyRocKol"></tbody>
+          </table>
+        </div>
+
+        <!-- Section 3: ROC - Lucknow Table -->
+        <div class="summary-block">
+          <table class="summary-matrix-table" id="tableRocLucknow">
+            <thead>
+              <tr>
+                <th colspan="5" class="table-title-cell">ROC - Lucknow</th>
+              </tr>
+              <tr class="yellow-headers">
+                <th>Date</th>
+                <th>Detractor</th>
+                <th>Audit Completed</th>
+                <th>Feedback Shared</th>
+                <th>Ops Validated</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyRocLucknow"></tbody>
+          </table>
+        </div>
+
+        <!-- Section 4: ROC - Delta Tower Table -->
+        <div class="summary-block">
+          <table class="summary-matrix-table" id="tableRocDelta">
+            <thead>
+              <tr>
+                <th colspan="5" class="table-title-cell">ROC - Delta Tower</th>
+              </tr>
+              <tr class="yellow-headers">
+                <th>Date</th>
+                <th>Detractor</th>
+                <th>Audit Completed</th>
+                <th>Feedback Shared</th>
+                <th>Ops Validated</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyRocDelta"></tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 3: QA DAY-WISE PRODUCTIVITY TRACKER -->
+    <div class="tab-pane" id="tab-productivity">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">👥 QA Day-Wise Productivity Tracker</h2>
+          <p class="section-desc">Interactive productivity matrix, daily output quotas, and individual auditor scorecard</p>
+        </div>
+      </div>
+
+      <div class="glass-panel" style="padding: 20px; margin-bottom: 24px;">
+        <div class="chart-card-header">
+          <div>
+            <span class="chart-title">🗓️ QA Day-Wise Audit Matrix & Output Heatmap</span>
+            <span class="section-desc">Color-coded daily audit volume per analyst across all dates (Click any cell to filter)</span>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center; font-size: 0.75rem;">
+            <span style="color: var(--text-muted); font-weight: 600;">Intensity:</span>
+            <span class="badge" style="background: #ffffff; color: var(--text-muted); border: 1px solid var(--border-subtle);">0</span>
+            <span class="badge" style="background: #e0f2fe; color: #0284c7;">1-3</span>
+            <span class="badge" style="background: #bae6fd; color: #0369a1;">4-7</span>
+            <span class="badge" style="background: #d1fae5; color: #047857;">8-14</span>
+            <span class="badge" style="background: #f3e8ff; color: #7e22ce;">15+ Peak</span>
+          </div>
+        </div>
+
+        <div class="qa-matrix-wrapper" id="qaMatrixContainer"></div>
+      </div>
+
+      <div class="chart-card glass-panel" style="margin-bottom: 24px;">
+        <div class="chart-card-header">
+          <span class="chart-title">📊 Daily Audits by QA (Stacked Trend)</span>
+          <span class="section-desc">Daily comparison across all 7 Quality Analysts</span>
+        </div>
+        <div class="chart-container chart-container-tall">
+          <canvas id="qaDayStackedChart"></canvas>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <div>
+          <h3 class="section-title">🏅 QA Auditor Scorecard & Quality Index</h3>
+          <p class="section-desc">Click any analyst card to isolate their portfolio across the dashboard</p>
+        </div>
+      </div>
+
+      <div class="qa-cards-grid" id="qaLeaderboardGrid"></div>
+    </div>
+
+    <!-- TAB 4: DAY-WISE AUDIT TRENDS -->
+    <div class="tab-pane" id="tab-trends">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📈 Day-Wise Audit Cadence & Volume Analytics</h2>
+          <p class="section-desc">Chronological progression of audit output, cumulative volume, and daily pass/fail patterns</p>
+        </div>
+      </div>
+
+      <div class="charts-grid-2">
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">📅 Daily Audit Volume & Trendline</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="trendsDailyChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">📈 Cumulative Audit Trajectory</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="trendsCumulativeChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card glass-panel">
+        <div class="chart-card-header">
+          <span class="chart-title">🎯 Day-Wise Pass vs Fail Breakdown</span>
+          <span class="section-desc">Evaluate daily quality compliance consistency across optical examinations</span>
+        </div>
+        <div class="chart-container chart-container-tall">
+          <canvas id="trendsPassFailStackedChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: DETRACTOR & CUSTOMER SENTIMENT -->
+    <div class="tab-pane" id="tab-detractors">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">⚠️ NPS Detractor Analysis & Customer Buckets</h2>
+          <p class="section-desc">Root-cause investigation of customer dissatisfaction in Remote Optometry eye tests</p>
+        </div>
+      </div>
+
+      <div class="charts-grid-2">
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">🔍 Customer L1 Detractor Buckets</span>
+          </div>
+          <div class="chart-container chart-container-tall">
+            <canvas id="detractorL1Chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">📋 Customer L2 Sub-Categories</span>
+          </div>
+          <div class="chart-container chart-container-tall">
+            <canvas id="detractorL2Chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-grid-2">
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">🤝 CX Complaint vs Auditor Finding Correlation</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="correlationChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">🏢 Detractor Distribution by ROC Hub</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="rocDetractorChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: AUDIT PASS/FAIL & CLINICAL GAPS -->
+    <div class="tab-pane" id="tab-passfail">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🎯 Audit Pass / Fail & Clinical SOP Compliance</h2>
+          <p class="section-desc">Analysis of clinical gaps, 9-step SOP execution, and auditor bucket distribution</p>
+        </div>
+      </div>
+
+      <div class="charts-grid-2">
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">❌ Top Clinical & SOP Gaps in Failed Audits</span>
+          </div>
+          <div class="chart-container chart-container-tall">
+            <canvas id="gapBucketsChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">🩺 9 Steps Clinical SOP Compliance (%)</span>
+          </div>
+          <div class="chart-container chart-container-tall">
+            <canvas id="sopAdherenceChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 7: FEEDBACK & REVALIDATION -->
+    <div class="tab-pane" id="tab-feedback">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🔄 Feedback Closure & Audit Validation Tracking</h2>
+          <p class="section-desc">Monitoring feedback loop closure with optometrists, coaching video sessions, and validation sign-offs</p>
+        </div>
+      </div>
+
+      <div class="charts-grid-3">
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">💬 Feedback Closure Status</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="feedbackStatusChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">🛡️ Audit Validation Status</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="validationStatusChart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card glass-panel">
+          <div class="chart-card-header">
+            <span class="chart-title">🎥 Video Review Shown to RO</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="videoShownChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card glass-panel">
+        <div class="chart-card-header">
+          <span class="chart-title">👥 Feedback Closure Rate by Quality Analyst</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="feedbackByQAChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 8: AUDIT RECORDS EXPLORER -->
+    <div class="tab-pane" id="tab-records">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📋 Interactive Audit Records Explorer</h2>
+          <p class="section-desc">Inspect, filter, search, and drill down into individual detractor audit evaluations</p>
+        </div>
+      </div>
+
+      <div class="glass-panel" style="padding: 20px;">
+        <div class="table-controls">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="tableSearch" placeholder="Search by RO Name, ID, QA, Customer Comment, Finding...">
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Rows per page:</span>
+            <select id="tablePageSize" class="filter-select" style="padding: 4px 8px;">
+              <option value="15">15</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-sort="responseDate">Resp Date ↕</th>
+                <th data-sort="qa">QA Analyst ↕</th>
+                <th data-sort="roName">RO Optometrist ↕</th>
+                <th data-sort="roc">ROC ↕</th>
+                <th data-sort="passFailStatus">Status ↕</th>
+                <th data-sort="feedbackStatus">Feedback ↕</th>
+                <th data-sort="validationStatus">Validation ↕</th>
+                <th>Customer L1 Bucket</th>
+                <th>Auditor Gap Bucket</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="pagination-bar">
+          <div id="tableInfo">Showing 1 to 25 of 663 records</div>
+          <div class="pagination-controls" id="tablePagination"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Audit Details Modal -->
+  <div class="modal-overlay" id="auditDetailModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 id="modalTitle">Audit Record Details</h3>
+        <button class="modal-close" id="modalCloseBtn">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Google Sheet Configuration & Status Modal -->
+  <div class="modal-overlay" id="sheetConfigModal">
+    <div class="modal-container" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3>Google Sheet Integration Settings</h3>
+        <button class="modal-close" id="sheetConfigModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 16px;">
+          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Linked Google Sheet URL:</label>
+          <input type="text" id="sheetUrlInput" class="filter-input" style="width: 100%; margin-top: 6px;" value="https://docs.google.com/spreadsheets/d/14elN4KYfUWcq73Pk-J30qxA8rWxh5a9DzJ1axYVzJgs/edit?usp=sharing">
+        </div>
+
+        <div style="background: #f8fafc; padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 18px; font-size: 0.82rem; line-height: 1.6;">
+          <div><strong>Sync Status:</strong> <span id="modalSyncStatus" style="color: #059669; font-weight: 700;">Connected</span></div>
+          <div><strong>Last Synced:</strong> <span id="modalLastSynced">Just now</span></div>
+          <div><strong>Sync Source:</strong> <span id="modalSyncSource">Google Sheet Connected (Live & Auto-Cached)</span></div>
+        </div>
+
+        <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;">
+          Clicking <strong>"Sync Google Sheet"</strong> in the top header pulls the latest rows from the sheet. If the Google Sheet is shared with <em>"Anyone with the link can view"</em>, it updates live in real-time. If it requires Google sign-in, the system automatically checks for the latest refreshed local export file and updates all metrics instantly!
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <a href="https://docs.google.com/spreadsheets/d/14elN4KYfUWcq73Pk-J30qxA8rWxh5a9DzJ1axYVzJgs/edit?usp=sharing" target="_blank" class="btn btn-secondary" style="text-decoration: none;">
+            Open Sheet in Browser ↗
+          </a>
+          <button class="btn btn-primary" id="btnSaveSheetConfig">
+            Save & Sync Now
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <p>Remote Optometry Quality Assurance Analytics • Lenskart ET NPS Detractor Operations Dashboard</p>
+    <p style="margin-top: 4px; font-size: 0.75rem;">Linked to Google Sheet • Antigravity Intelligent Suite</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

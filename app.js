@@ -59,11 +59,99 @@
     } catch (e) {}
   }
 
+  // Auto-refresh state
+  let autoRefreshInterval = null;
+  let autoRefreshCountdown = 300; // 5 minutes in seconds
+  const AUTO_REFRESH_SECONDS = 300;
+
   // Initialize
   document.addEventListener('DOMContentLoaded', () => {
     loadDataset();
     setupEventListeners();
+    startAutoRefresh();
+    loadSyncStatus();
   });
+
+  // Load last sync status from server config
+  async function loadSyncStatus() {
+    try {
+      const res = await fetch('/api/config');
+      const cfg = await res.json();
+      updateSyncBadge(cfg);
+    } catch(e) {}
+  }
+
+  function updateSyncBadge(cfg) {
+    const badge = document.getElementById('liveDataBadge');
+    if (badge && cfg) {
+      const count = cfg.recordCount || '';
+      const ts = cfg.lastSynced || '';
+      const src = cfg.syncSource || '';
+      if (ts) {
+        badge.textContent = `${count ? count + ' rows • ' : ''}Last sync: ${ts.split(' ')[1] || ts}`;
+      }
+    }
+  }
+
+  // Start auto-refresh loop
+  function startAutoRefresh() {
+    updateCountdownDisplay();
+    autoRefreshInterval = setInterval(() => {
+      autoRefreshCountdown--;
+      if (autoRefreshCountdown <= 0) {
+        autoRefreshCountdown = AUTO_REFRESH_SECONDS;
+        silentSync();
+      }
+      updateCountdownDisplay();
+    }, 1000);
+  }
+
+  function updateCountdownDisplay() {
+    const el = document.getElementById('autoRefreshCountdown');
+    if (el) {
+      const m = Math.floor(autoRefreshCountdown / 60);
+      const s = autoRefreshCountdown % 60;
+      el.textContent = `Auto-refresh in ${m}:${String(s).padStart(2,'0')}`;
+    }
+  }
+
+  // Silent background sync — no alerts, just updates data
+  async function silentSync() {
+    try {
+      const response = await fetch('/api/sync', { method: 'GET' });
+      const res = await response.json();
+      if (res.success) {
+        const dataRes = await fetch('data.json?t=' + Date.now());
+        const freshData = await dataRes.json();
+        if (freshData && freshData.length > 0) {
+          state.allData = freshData;
+          window.AUDIT_DATA = freshData;
+          // Preserve current filter state
+          const prevQA = state.filters.qa;
+          const prevROC = state.filters.roc;
+          const prevPF = state.filters.passFail;
+          populateFilterDropdowns();
+          state.filters.qa = prevQA;
+          state.filters.roc = prevROC;
+          state.filters.passFail = prevPF;
+          const qaEl = document.getElementById('filterQA');
+          const rocEl = document.getElementById('filterROC');
+          if (qaEl) qaEl.value = prevQA;
+          if (rocEl) rocEl.value = prevROC;
+          applyFilters();
+        }
+        updateSyncBadge(res);
+        // Flash the countdown indicator green
+        const el = document.getElementById('autoRefreshCountdown');
+        if (el) {
+          el.style.color = '#059669';
+          setTimeout(() => { el.style.color = ''; }, 2000);
+        }
+      }
+    } catch(e) {
+      console.warn('Silent sync failed:', e);
+    }
+  }
 
   // 1. Data Loading
   function loadDataset() {
@@ -1276,40 +1364,67 @@
     applyFilters();
   };
 
-  // 13. Google Sheet Sync Handler
+  // 13. Google Sheet Sync Handler (manual trigger — no alert popups)
   async function triggerGoogleSheetSync() {
     const btn = document.getElementById('btnSyncGoogleSheet');
     const textSpan = document.getElementById('syncBtnText');
     if (btn) btn.classList.add('syncing');
     if (textSpan) textSpan.textContent = 'Syncing...';
 
+    // Reset auto-refresh countdown on manual sync
+    autoRefreshCountdown = AUTO_REFRESH_SECONDS;
+
     try {
       const response = await fetch('/api/sync', { method: 'GET' });
       const res = await response.json();
 
       if (res.success) {
-        if (textSpan) textSpan.textContent = 'Updated!';
-        const badge = document.getElementById('liveDataBadge');
-        if (badge) badge.textContent = `Synced (${res.recordsCount} rows)`;
+        if (textSpan) textSpan.textContent = '✓ Updated';
+        const dataRes = await fetch('data.json?t=' + Date.now());
+        const freshData = await dataRes.json();
+        if (freshData && freshData.length > 0) {
+          const prevQA = state.filters.qa;
+          const prevROC = state.filters.roc;
+          const prevPF = state.filters.passFail;
+          state.allData = freshData;
+          window.AUDIT_DATA = freshData;
+          populateFilterDropdowns();
+          state.filters.qa = prevQA;
+          state.filters.roc = prevROC;
+          state.filters.passFail = prevPF;
+          const qaEl = document.getElementById('filterQA');
+          const rocEl = document.getElementById('filterROC');
+          if (qaEl) qaEl.value = prevQA;
+          if (rocEl) rocEl.value = prevROC;
+          applyFilters();
+        }
+        updateSyncBadge(res);
+
+        const src = res.source || '';
+        const srcShort = src.includes('Google Sheet Live') ? '🟢 Live Sheet' : '📂 Local Cache';
+        const statusEl = document.getElementById('syncStatusText');
+        if (statusEl) statusEl.textContent = srcShort;
+
         setTimeout(() => {
           if (textSpan) textSpan.textContent = 'Sync Google Sheet';
           if (btn) btn.classList.remove('syncing');
-        }, 2000);
-
-        const dataRes = await fetch('data.json?t=' + Date.now());
-        const freshData = await dataRes.json();
-        state.allData = freshData;
-        window.AUDIT_DATA = freshData;
-        onDataReady();
-        alert(res.message || "Google Sheet data successfully refreshed!");
+        }, 2500);
       } else {
-        alert("Sync issue: " + (res.error || "Unable to sync directly."));
-        if (btn) btn.classList.remove('syncing');
-        if (textSpan) textSpan.textContent = 'Sync Google Sheet';
+        if (textSpan) textSpan.textContent = '⚠ Sheet Private';
+        const statusEl = document.getElementById('syncStatusText');
+        if (statusEl) statusEl.textContent = '⚠ Share sheet publicly to sync';
+        setTimeout(() => {
+          if (textSpan) textSpan.textContent = 'Sync Google Sheet';
+          if (btn) btn.classList.remove('syncing');
+        }, 3000);
       }
     } catch (err) {
-      console.warn("Local sync API error or running as static file:", err);
-      location.reload();
+      console.warn('Sync API error (running as static file?):', err);
+      if (textSpan) textSpan.textContent = 'Start server.py';
+      setTimeout(() => {
+        if (textSpan) textSpan.textContent = 'Sync Google Sheet';
+        if (btn) btn.classList.remove('syncing');
+      }, 3000);
     }
   }
 

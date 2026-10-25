@@ -216,6 +216,25 @@ def process_csv_content(csv_text, source_name="Google Sheet"):
 
     return records
 
+def find_local_csv():
+    """Search multiple known paths for a local audit CSV export."""
+    candidates = [
+        LOCAL_CSV_FALLBACK,
+        os.path.join(os.path.expanduser("~"), "Downloads", "Audit Checklist - Remote Optometry - ET NPS Detractor Audits.csv"),
+        os.path.join(os.path.expanduser("~"), "Desktop", "Audit Checklist - Remote Optometry - ET NPS Detractor Audits.csv"),
+    ]
+    # Also scan Downloads for any recent CSV with "Audit" in name
+    downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+    if os.path.isdir(downloads):
+        for fname in sorted(os.listdir(downloads), reverse=True):
+            if fname.endswith(".csv") and ("Audit" in fname or "audit" in fname or "Detractor" in fname):
+                candidates.append(os.path.join(downloads, fname))
+    
+    for path in candidates:
+        if path and os.path.exists(path):
+            return path
+    return None
+
 def sync_from_google_sheet(sheet_url):
     sheet_id = get_sheet_id(sheet_url)
     export_urls = [
@@ -224,7 +243,6 @@ def sync_from_google_sheet(sheet_url):
     ]
     
     content = None
-    fetched_from = None
     
     for url in export_urls:
         try:
@@ -238,7 +256,6 @@ def sync_from_google_sheet(sheet_url):
                     text = raw_bytes.decode('utf-8', errors='replace')
                     if "Response ID" in text or "Quality Analyst" in text:
                         content = text
-                        fetched_from = "Google Sheet Live Export"
                         break
         except Exception as e:
             pass
@@ -250,28 +267,35 @@ def sync_from_google_sheet(sheet_url):
             "source": "Google Sheet Live API",
             "message": f"Successfully synced {len(records)} records directly from Google Sheet!",
             "recordsCount": len(records),
+            "recordCount": len(records),
+            "lastSynced": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     
-    if os.path.exists(LOCAL_CSV_FALLBACK):
+    local_csv = find_local_csv()
+    if local_csv:
         try:
-            with open(LOCAL_CSV_FALLBACK, "r", encoding="utf-8", errors="replace") as f:
+            with open(local_csv, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
             records = process_csv_content(content, source_name="Local Google Sheet Export")
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             return {
                 "success": True,
                 "source": "Local Google Sheet Export (Cached/Downloaded)",
-                "message": f"Synced {len(records)} records from the latest local Google Sheet export (Google Sheet requires sign-in for anonymous download).",
+                "message": f"Synced {len(records)} records from local CSV export.",
                 "recordsCount": len(records),
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "recordCount": len(records),
+                "lastSynced": now,
+                "timestamp": now
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     return {
         "success": False,
-        "error": "Google Sheet requires user authorization (401/302). Please ensure the Google Sheet link sharing is set to 'Anyone with the link can view'."
+        "error": "Google Sheet is private (requires sign-in). Share the sheet as 'Anyone with the link can view' to enable live sync."
     }
+
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
